@@ -74,10 +74,15 @@ relative `/api/duffel/*` paths, and a thin server-side proxy injects the credent
 - **Development:** the Vite dev server proxies `/api/duffel/*` → `https://api.duffel.com`
   ([vite.config.ts](vite.config.ts)), adding the `Authorization` and `Duffel-Version` headers
   server-side.
-- **Production:** a Vercel serverless function ([api/duffel/[...path].ts](api/duffel/%5B...path%5D.ts))
-  does the same. It allowlists exactly the two endpoints the app needs (`POST air/offer_requests`,
-  `GET places/suggestions`), never forwards client headers, and passes Duffel's status codes and
-  error envelope through verbatim so the frontend handles one error shape everywhere.
+- **Production:** two Vercel serverless functions, one per endpoint
+  ([api/duffel/places/suggestions.ts](api/duffel/places/suggestions.ts) and
+  [api/duffel/air/offer_requests.ts](api/duffel/air/offer_requests.ts)). Because Vercel's zero-config
+  `/api` routes only by concrete file path, allowlisting is enforced by the filesystem: only these
+  two paths exist, so the URL can't be abused as an open Duffel proxy. Each function is
+  self-contained (no cross-module imports — the project is ESM, and a Vercel function importing from
+  outside `/api` fails to resolve at cold start). Neither forwards client headers, and both pass
+  Duffel's status codes and error envelope through verbatim so the frontend handles one error shape
+  everywhere.
 
 The token is read from `DUFFEL_ACCESS_TOKEN` **without** a `VITE_` prefix on purpose: Vite only
 inlines prefixed variables into the client bundle, so the token cannot end up in shipped JS. Same
@@ -152,7 +157,9 @@ area than they remove; the assignment also caps styling to Tailwind only.
 ## Project structure
 
 ```
-api/duffel/[...path].ts   Vercel serverless proxy (the production CORS workaround)
+api/duffel/                Vercel serverless proxy (the production CORS workaround)
+  places/suggestions.ts    GET  proxy → Duffel /places/suggestions
+  air/offer_requests.ts    POST proxy → Duffel /air/offer_requests
 src/
   api/                    fetch wrapper + Duffel client, wire types, offer normalization
   components/
